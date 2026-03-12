@@ -1,0 +1,370 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>התאמת מילים לליב</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: 'Segoe UI', Tahoma, sans-serif;
+      background: linear-gradient(135deg, #89CFF0 0%, #4A90D9 100%);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 10px;
+    }
+
+    h1 { color: white; font-size: 2rem; margin-bottom: 6px; text-shadow: 2px 2px 4px rgba(0,0,0,0.2); }
+
+    .score-bar {
+      color: white; font-size: 1rem; margin-bottom: 10px;
+      display: flex; gap: 20px;
+    }
+    .score-bar span { background: rgba(255,255,255,0.25); padding: 4px 14px; border-radius: 20px; }
+
+    .level-bar { color: white; font-size: 0.95rem; margin-bottom: 10px; }
+
+    .game-area {
+      display: flex; gap: 20px; justify-content: center; align-items: flex-start;
+      flex-wrap: wrap; width: 100%; max-width: 900px;
+    }
+
+    .column {
+      flex: 1; min-width: 140px; max-width: 420px;
+      display: flex; flex-direction: column; gap: 10px;
+    }
+
+    .column-title {
+      text-align: center; color: white; font-size: 1.1rem;
+      font-weight: bold; margin-bottom: 4px;
+    }
+
+    .card {
+      background: white; border-radius: 14px; padding: 14px;
+      text-align: center; cursor: pointer;
+      box-shadow: 0 4px 15px rgba(0,0,0,0.12);
+      transition: all 0.2s; user-select: none;
+      border: 3px solid transparent;
+      height: 80px; display: flex; align-items: center; justify-content: center;
+    }
+    .card:hover { transform: scale(1.03); box-shadow: 0 6px 20px rgba(0,0,0,0.18); }
+    .card.selected { border-color: #4A90D9; background: #e8f4fd; }
+    .card.correct {
+      border-color: #27ae60; background: #e8f8ef;
+      animation: popOut 0.6s ease forwards;
+    }
+    .card.wrong {
+      border-color: #e74c3c; background: #fde8e8;
+      animation: shake 0.4s ease;
+    }
+
+    .card .emoji { font-size: 3rem; line-height: 1.2; }
+    .card .word { font-size: 2rem; font-weight: bold; color: #333; letter-spacing: 1px; line-height: 1.2; }
+
+    .card .hint-text { font-size: 0.8rem; color: #999; margin-top: 2px; display: none; }
+    .card .hint-text.visible { display: block; }
+
+    .word-card { gap: 12px; }
+
+    .card-btn {
+      background: none; border: none; cursor: pointer; font-size: 1.2rem;
+      padding: 2px; transition: transform 0.15s; flex-shrink: 0;
+    }
+    .card-btn:hover { transform: scale(1.3); }
+    .card-btn:active { transform: scale(0.95); }
+
+    @keyframes popOut {
+      0% { transform: scale(1); opacity: 1; }
+      50% { transform: scale(1.15); opacity: 0.8; }
+      100% { transform: scale(0); opacity: 0; height: 0; padding: 0; margin: 0; border: 0; overflow: hidden; }
+    }
+
+    @keyframes shake {
+      0%, 100% { transform: translateX(0); }
+      25% { transform: translateX(-6px); }
+      75% { transform: translateX(6px); }
+    }
+
+    .message {
+      margin-top: 12px; font-size: 1.5rem; font-weight: bold;
+      color: white; min-height: 40px; text-shadow: 1px 1px 3px rgba(0,0,0,0.2);
+    }
+
+    @media (max-width: 600px) {
+      body { padding: 5px; }
+      h1 { font-size: 1.3rem; margin-bottom: 4px; }
+      .score-bar { font-size: 0.85rem; margin-bottom: 5px; gap: 10px; }
+      .score-bar span { padding: 3px 10px; }
+      .level-bar { font-size: 0.85rem; margin-bottom: 5px; }
+      .game-area { flex-direction: row; gap: 6px; }
+      .column { min-width: 0; gap: 6px; flex: 1; }
+      .column-title { font-size: 0.85rem; margin-bottom: 2px; }
+      .card { padding: 8px 6px; border-radius: 10px; height: 60px; border-width: 2px; }
+      .card .emoji { font-size: 2rem; }
+      .card .word { font-size: 1.1rem; }
+      .card .hint-text { font-size: 0.7rem; }
+      .word-card { gap: 6px; }
+      .card-btn { font-size: 1rem; }
+      .message { font-size: 1rem; margin-top: 6px; min-height: 28px; }
+    }
+  </style>
+</head>
+<body>
+
+  <h1>&#x1F4DA; התאמת מילים לליב &#x1F4DA;</h1>
+  <div class="score-bar">
+    <span>&#x2705; נכון: <strong id="correctCount">0</strong></span>
+    <span>&#x274C; שגוי: <strong id="wrongCount">0</strong></span>
+  </div>
+  <div class="level-bar">&#x2B50; שלב: <strong id="levelNum">1</strong></div>
+
+  <div class="game-area">
+    <div class="column" id="pictureCol">
+      <div class="column-title">&#x1F5BC;&#xFE0F; תמונות</div>
+    </div>
+    <div class="column" id="wordCol">
+      <div class="column-title">&#x1F524; מילים</div>
+    </div>
+  </div>
+
+  <div class="message" id="message"></div>
+
+  <script>
+    var allWords = [
+      { word: 'Cat', emoji: '&#x1F431;', hint: '\u05D7\u05EA\u05D5\u05DC' },
+      { word: 'Dog', emoji: '&#x1F436;', hint: '\u05DB\u05DC\u05D1' },
+      { word: 'Fish', emoji: '&#x1F41F;', hint: '\u05D3\u05D2' },
+      { word: 'Bird', emoji: '&#x1F426;', hint: '\u05E6\u05D9\u05E4\u05D5\u05E8' },
+      { word: 'Sun', emoji: '&#x2600;&#xFE0F;', hint: '\u05E9\u05DE\u05E9' },
+      { word: 'Moon', emoji: '&#x1F319;', hint: '\u05D9\u05E8\u05D7' },
+      { word: 'Star', emoji: '&#x2B50;', hint: '\u05DB\u05D5\u05DB\u05D1' },
+      { word: 'Tree', emoji: '&#x1F333;', hint: '\u05E2\u05E5' },
+      { word: 'Flower', emoji: '&#x1F33B;', hint: '\u05E4\u05E8\u05D7' },
+      { word: 'Apple', emoji: '&#x1F34E;', hint: '\u05EA\u05E4\u05D5\u05D7' },
+      { word: 'Banana', emoji: '&#x1F34C;', hint: '\u05D1\u05E0\u05E0\u05D4' },
+      { word: 'Car', emoji: '&#x1F697;', hint: '\u05DE\u05DB\u05D5\u05E0\u05D9\u05EA' },
+      { word: 'Bus', emoji: '&#x1F68C;', hint: '\u05D0\u05D5\u05D8\u05D5\u05D1\u05D5\u05E1' },
+      { word: 'House', emoji: '&#x1F3E0;', hint: '\u05D1\u05D9\u05EA' },
+      { word: 'Book', emoji: '&#x1F4D6;', hint: '\u05E1\u05E4\u05E8' },
+      { word: 'Ball', emoji: '&#x26BD;', hint: '\u05DB\u05D3\u05D5\u05E8' },
+      { word: 'Heart', emoji: '&#x2764;&#xFE0F;', hint: '\u05DC\u05D1' },
+      { word: 'Rain', emoji: '&#x1F327;&#xFE0F;', hint: '\u05D2\u05E9\u05DD' },
+      { word: 'Snow', emoji: '&#x2744;&#xFE0F;', hint: '\u05E9\u05DC\u05D2' },
+      { word: 'Fire', emoji: '&#x1F525;', hint: '\u05D0\u05E9' },
+      { word: 'Water', emoji: '&#x1F4A7;', hint: '\u05DE\u05D9\u05DD' },
+      { word: 'Cake', emoji: '&#x1F382;', hint: '\u05E2\u05D5\u05D2\u05D4' },
+      { word: 'Pizza', emoji: '&#x1F355;', hint: '\u05E4\u05D9\u05E6\u05D4' },
+      { word: 'Ice Cream', emoji: '&#x1F368;', hint: '\u05D2\u05DC\u05D9\u05D3\u05D4' },
+      { word: 'Candy', emoji: '&#x1F36C;', hint: '\u05E1\u05D5\u05DB\u05E8\u05D9\u05D4' },
+      { word: 'Milk', emoji: '&#x1F95B;', hint: '\u05D7\u05DC\u05D1' },
+      { word: 'Egg', emoji: '&#x1F95A;', hint: '\u05D1\u05D9\u05E6\u05D4' },
+      { word: 'Bread', emoji: '&#x1F35E;', hint: '\u05DC\u05D7\u05DD' },
+      { word: 'Cheese', emoji: '&#x1F9C0;', hint: '\u05D2\u05D1\u05D9\u05E0\u05D4' },
+      { word: 'Chicken', emoji: '&#x1F414;', hint: '\u05EA\u05E8\u05E0\u05D2\u05D5\u05DC' },
+      { word: 'Pig', emoji: '&#x1F437;', hint: '\u05D7\u05D6\u05D9\u05E8' },
+      { word: 'Cow', emoji: '&#x1F42E;', hint: '\u05E4\u05E8\u05D4' },
+      { word: 'Horse', emoji: '&#x1F434;', hint: '\u05E1\u05D5\u05E1' },
+      { word: 'Rabbit', emoji: '&#x1F430;', hint: '\u05D0\u05E8\u05E0\u05D1' },
+      { word: 'Bear', emoji: '&#x1F43B;', hint: '\u05D3\u05D5\u05D1' },
+      { word: 'Lion', emoji: '&#x1F981;', hint: '\u05D0\u05E8\u05D9\u05D4' },
+      { word: 'Monkey', emoji: '&#x1F435;', hint: '\u05E7\u05D5\u05E3' },
+      { word: 'Frog', emoji: '&#x1F438;', hint: '\u05E6\u05E4\u05E8\u05D3\u05E2' },
+      { word: 'Butterfly', emoji: '&#x1F98B;', hint: '\u05E4\u05E8\u05E4\u05E8' },
+      { word: 'Bee', emoji: '&#x1F41D;', hint: '\u05D3\u05D1\u05D5\u05E8\u05D4' },
+      { word: 'Rainbow', emoji: '&#x1F308;', hint: '\u05E7\u05E9\u05EA' },
+      { word: 'Cloud', emoji: '&#x2601;&#xFE0F;', hint: '\u05E2\u05E0\u05DF' },
+      { word: 'Rocket', emoji: '&#x1F680;', hint: '\u05E8\u05E7\u05D8\u05D4' },
+      { word: 'Airplane', emoji: '&#x2708;&#xFE0F;', hint: '\u05DE\u05D8\u05D5\u05E1' },
+      { word: 'Train', emoji: '&#x1F682;', hint: '\u05E8\u05DB\u05D1\u05EA' },
+      { word: 'Bicycle', emoji: '&#x1F6B2;', hint: '\u05D0\u05D5\u05E4\u05E0\u05D9\u05D9\u05DD' },
+      { word: 'Hat', emoji: '&#x1F3A9;', hint: '\u05DB\u05D5\u05D1\u05E2' },
+      { word: 'Shoe', emoji: '&#x1F45F;', hint: '\u05E0\u05E2\u05DC' },
+      { word: 'Clock', emoji: '&#x1F570;&#xFE0F;', hint: '\u05E9\u05E2\u05D5\u05DF' },
+      { word: 'Key', emoji: '&#x1F511;', hint: '\u05DE\u05E4\u05EA\u05D7' },
+      { word: 'Phone', emoji: '&#x1F4F1;', hint: '\u05D8\u05DC\u05E4\u05D5\u05DF' },
+      { word: 'Guitar', emoji: '&#x1F3B8;', hint: '\u05D2\u05D9\u05D8\u05E8\u05D4' },
+      { word: 'Drum', emoji: '&#x1F941;', hint: '\u05EA\u05D5\u05E3' },
+      { word: 'Crown', emoji: '&#x1F451;', hint: '\u05DB\u05EA\u05E8' },
+      { word: 'Diamond', emoji: '&#x1F48E;', hint: '\u05D9\u05D4\u05DC\u05D5\u05DD' },
+      { word: 'Gift', emoji: '&#x1F381;', hint: '\u05DE\u05EA\u05E0\u05D4' },
+      { word: 'Balloon', emoji: '&#x1F388;', hint: '\u05D1\u05DC\u05D5\u05DF' },
+      { word: 'Flag', emoji: '&#x1F3F3;&#xFE0F;', hint: '\u05D3\u05D2\u05DC' },
+      { word: 'Pencil', emoji: '&#x270F;&#xFE0F;', hint: '\u05E2\u05D9\u05E4\u05E8\u05D5\u05DF' },
+      { word: 'Scissors', emoji: '&#x2702;&#xFE0F;', hint: '\u05DE\u05E1\u05E4\u05E8\u05D9\u05D9\u05DD' }
+    ];
+
+    function speakWord(word) {
+      var utterance = new SpeechSynthesisUtterance(word);
+      utterance.lang = 'en-US';
+      utterance.rate = 0.8;
+      speechSynthesis.speak(utterance);
+    }
+
+    var correctCount = 0;
+    var wrongCount = 0;
+    var level = 1;
+    var cardsPerLevel = 3;
+    var usedIndices = [];
+    var selectedPicture = null;
+    var selectedWord = null;
+    var currentItems = [];
+    var remainingPairs = 0;
+    var locked = false;
+
+    var pictureCol = document.getElementById('pictureCol');
+    var wordCol = document.getElementById('wordCol');
+    var messageEl = document.getElementById('message');
+
+    function shuffle(arr) {
+      for (var i = arr.length - 1; i > 0; i--) {
+        var j = Math.floor(Math.random() * (i + 1));
+        var temp = arr[i]; arr[i] = arr[j]; arr[j] = temp;
+      }
+      return arr;
+    }
+
+    function pickItems(count) {
+      var available = [];
+      for (var i = 0; i < allWords.length; i++) {
+        if (usedIndices.indexOf(i) === -1) available.push(i);
+      }
+      if (available.length < count) {
+        usedIndices = [];
+        available = [];
+        for (var i = 0; i < allWords.length; i++) available.push(i);
+      }
+      shuffle(available);
+      var picked = available.slice(0, count);
+      for (var i = 0; i < picked.length; i++) usedIndices.push(picked[i]);
+      return picked.map(function(idx) { return allWords[idx]; });
+    }
+
+    function startLevel() {
+      var count = Math.min(cardsPerLevel + level - 1, 8);
+      currentItems = pickItems(count);
+      remainingPairs = currentItems.length;
+      selectedPicture = null;
+      selectedWord = null;
+      messageEl.textContent = '';
+      document.getElementById('levelNum').textContent = level;
+
+      // Clear columns (keep titles)
+      pictureCol.innerHTML = '<div class="column-title">&#x1F5BC;&#xFE0F; תמונות</div>';
+      wordCol.innerHTML = '<div class="column-title">&#x1F524; מילים</div>';
+
+      var shuffledPictures = shuffle(currentItems.slice());
+      var shuffledWords = shuffle(currentItems.slice());
+
+      shuffledPictures.forEach(function(item) {
+        var card = document.createElement('div');
+        card.className = 'card picture-card';
+        card.setAttribute('data-word', item.word);
+        card.innerHTML = '<div class="emoji">' + item.emoji + '</div>';
+        card.addEventListener('click', function() { onPictureClick(card); });
+        pictureCol.appendChild(card);
+      });
+
+      shuffledWords.forEach(function(item) {
+        var card = document.createElement('div');
+        card.className = 'card word-card';
+        card.setAttribute('data-word', item.word);
+        card.innerHTML = '<button class="card-btn" title="\u05E9\u05DE\u05E2\u05D9">&#x1F50A;</button>' +
+          '<div><div class="word">' + item.word + '</div>' +
+          '<div class="hint-text">' + item.hint + '</div></div>' +
+          '<button class="card-btn hint-btn-card" title="\u05E8\u05DE\u05D6">&#x1F4A1;</button>';
+        card.querySelector('.card-btn').addEventListener('click', function(e) {
+          e.stopPropagation();
+          speakWord(item.word);
+        });
+        card.querySelector('.hint-btn-card').addEventListener('click', function(e) {
+          e.stopPropagation();
+          card.querySelector('.hint-text').classList.toggle('visible');
+        });
+        card.addEventListener('click', function() { onWordClick(card); });
+        wordCol.appendChild(card);
+      });
+    }
+
+    function clearSelection() {
+      document.querySelectorAll('.card.selected').forEach(function(c) {
+        c.classList.remove('selected');
+      });
+      selectedPicture = null;
+      selectedWord = null;
+    }
+
+    function onPictureClick(card) {
+      if (locked) return;
+      if (card.classList.contains('correct')) return;
+
+      // Deselect previous picture
+      if (selectedPicture) selectedPicture.classList.remove('selected');
+      selectedPicture = card;
+      card.classList.add('selected');
+
+      if (selectedWord) checkMatch();
+    }
+
+    function onWordClick(card) {
+      if (locked) return;
+      if (card.classList.contains('correct')) return;
+
+      if (selectedWord) selectedWord.classList.remove('selected');
+      selectedWord = card;
+      card.classList.add('selected');
+
+      if (selectedPicture) checkMatch();
+    }
+
+    function checkMatch() {
+      locked = true;
+      var picWord = selectedPicture.getAttribute('data-word');
+      var wrdWord = selectedWord.getAttribute('data-word');
+
+      if (picWord === wrdWord) {
+        selectedPicture.classList.add('correct');
+        selectedWord.classList.add('correct');
+        correctCount++;
+        document.getElementById('correctCount').textContent = correctCount;
+        messageEl.textContent = '\u{1F389} \u05DE\u05E6\u05D5\u05D9\u05DF! ' + wrdWord + '!';
+        remainingPairs--;
+
+        selectedPicture = null;
+        selectedWord = null;
+        locked = false;
+
+        if (remainingPairs === 0) {
+          setTimeout(function() {
+            messageEl.textContent = '\u{1F31F} \u05E9\u05DC\u05D1 ' + level + ' \u05D4\u05D5\u05E9\u05DC\u05DD! \u05E2\u05D5\u05D1\u05E8\u05D9\u05DD \u05DC\u05E9\u05DC\u05D1 \u05D4\u05D1\u05D0...';
+            setTimeout(function() {
+              level++;
+              startLevel();
+            }, 1500);
+          }, 700);
+        }
+      } else {
+        selectedPicture.classList.add('wrong');
+        selectedWord.classList.add('wrong');
+        wrongCount++;
+        document.getElementById('wrongCount').textContent = wrongCount;
+        messageEl.textContent = '\u{1F914} \u05DC\u05D0 \u05DE\u05EA\u05D0\u05D9\u05DD, \u05E0\u05E1\u05D4 \u05E9\u05D5\u05D1!';
+
+        var p = selectedPicture;
+        var w = selectedWord;
+        setTimeout(function() {
+          p.classList.remove('wrong', 'selected');
+          w.classList.remove('wrong', 'selected');
+          selectedPicture = null;
+          selectedWord = null;
+          locked = false;
+        }, 800);
+      }
+    }
+
+    startLevel();
+  </script>
+</body>
+</html>
